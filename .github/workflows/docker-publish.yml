@@ -1,0 +1,53 @@
+# Имя нашего пайплайна, оно будет отображаться в интерфейсе GitHub Actions
+name: Build and Push Docker Image
+
+# Определяем события (триггеры), которые запускают этот пайплайн.
+# В данном случае: при каждом пуше (push) или пул-реквесте (pull_request) в ветку "main".
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+# Собственно, работа пайплайна - это последовательность заданий (jobs)
+jobs:
+  # Называем наше задание "build". Можно иметь несколько jobs.
+  build:
+    # Запускаем это задание на последней версии виртуальной машины Ubuntu от GitHub
+    runs-on: ubuntu-latest
+
+    # Шаги, которые нужно выполнить в рамках этого задания
+    steps:
+      # Шаг 1: Checkout (выгрузить) код нашего репозитория.
+      # Это обязательный шаг, чтобы пайплайн имел доступ к нашему Dockerfile и коду приложения.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Шаг 2: Логин в Docker Hub.
+      # Используем готовое действие (action) от Docker.
+      # Мы передаем ему логин и токен из секретов, которые создали ранее.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Шаг 3: Извлечение метаданных для Docker-образа (опционально, но очень полезно).
+      # Это действие автоматически подготавливает теги (tags) и лейблы (labels) для нашего образа.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/my-docker-app
+
+      # Шаг 4: Сборка Docker-образа и его публикация в Docker Hub.
+      # Используем действие для сборки и пуша.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          # Контекст сборки - путь к папке с Dockerfile (обычно корень репозитория, поэтому ".")
+          context: .
+          # Указываем, куда пушить образ. Теги берем из предыдущего шага (meta).
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
